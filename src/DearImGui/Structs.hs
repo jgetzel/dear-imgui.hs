@@ -108,6 +108,16 @@ data ImGuiListClipper
 -- | 'DearImGui.Raw.DragDrop.Payload' pointer tag.
 data ImGuiPayload
 
+-- | A platform window or platform monitor. Always at least one main viewport.
+--   See "DearImGui.Raw.Viewport".
+data ImGuiViewport
+
+-- | Window class hints for docking compatibility and platform backend behavior.
+data ImGuiWindowClass
+
+-- | Internal dock node handle (opaque). See "DearImGui.Raw.DockBuilder".
+data ImGuiDockNode
+
 -- | A unique ID used by widgets (typically the result of hashing a stack of string)
 --   unsigned Integer (same as ImU32)
 type ImGuiID = ImU32

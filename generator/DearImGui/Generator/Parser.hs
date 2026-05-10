@@ -11,75 +11,127 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module DearImGui.Generator.Parser
-  ( CustomParseError(..)
-  , headers
-  )
-  where
+module DearImGui.Generator.Parser (
+  CustomParseError (..),
+  headers,
+)
+where
 
 -- base
-import Control.Applicative
-  ( (<|>), many, optional, some )
-import Control.Monad
-  ( void )
-import Data.Bits
-  ( Bits(shiftL) )
-import Data.Char
-  ( isSpace, toLower )
-import Data.Either
-  ( rights )
-import Data.Functor
-  ( ($>) )
-import Data.Int
-  ( Int64 )
-import Data.Maybe
-  ( catMaybes, fromMaybe )
-import Foreign.C.Types
-  ( CChar, CInt, CShort, CLLong, CUChar, CUShort, CUInt, CULLong )
+import Control.Applicative (
+  many,
+  optional,
+  some,
+  (<|>),
+ )
+import Control.Monad (
+  void,
+ )
+import Data.Bits (
+  Bits (shiftL),
+ )
+import Data.Char (
+  isSpace,
+  toLower,
+ )
+import Data.Either (
+  rights,
+ )
+import Data.Functor (
+  ($>),
+ )
+import Data.Int (
+  Int64,
+ )
+import Data.Maybe (
+  catMaybes,
+  fromMaybe,
+ )
+import Foreign.C.Types (
+  CChar,
+  CInt,
+  CLLong,
+  CShort,
+  CUChar,
+  CUInt,
+  CULLong,
+  CUShort,
+ )
 
 -- template-haskell
-import qualified Language.Haskell.TH as TH
-  ( Name )
+import qualified Language.Haskell.TH as TH (
+  Name,
+ )
 
 -- megaparsec
-import Text.Megaparsec
-  ( MonadParsec(..), ShowErrorComponent(..)
-  , (<?>), anySingle, choice, customFailure, single
-  )
+import Text.Megaparsec (
+  MonadParsec (..),
+  ShowErrorComponent (..),
+  anySingle,
+  choice,
+  customFailure,
+  single,
+  (<?>),
+ )
 
 -- parser-combinators
-import Control.Applicative.Combinators
-  ( manyTill, option, sepBy1, skipManyTill )
+import Control.Applicative.Combinators (
+  manyTill,
+  option,
+  sepBy1,
+  skipManyTill,
+ )
 
 -- scientific
-import Data.Scientific
-  ( floatingOrInteger, toBoundedInteger )
+import Data.Scientific (
+  floatingOrInteger,
+  toBoundedInteger,
+ )
 
 -- text
-import Data.Text
-  ( Text )
-import qualified Data.Text as Text
-  ( all, any, breakOn, drop, dropWhile, dropWhileEnd
-  , length, stripPrefix, unlines, unpack, pack
-  )
+import Data.Text (
+  Text,
+ )
+import qualified Data.Text as Text (
+  all,
+  any,
+  breakOn,
+  drop,
+  dropWhile,
+  dropWhileEnd,
+  length,
+  pack,
+  stripPrefix,
+  unlines,
+  unpack,
+ )
 
 -- transformers
-import Control.Monad.Trans.State.Strict
-  ( StateT(..)
-  , get, modify'
-  )
+import Control.Monad.Trans.State.Strict (
+  StateT (..),
+  get,
+  modify',
+ )
 
 -- unordered-containers
-import Data.HashMap.Strict
-  ( HashMap )
-import qualified Data.HashMap.Strict as HashMap
-  ( fromList, insert, lookup )
+import Data.HashMap.Strict (
+  HashMap,
+ )
+import qualified Data.HashMap.Strict as HashMap (
+  fromList,
+  insert,
+  lookup,
+ )
 
 -- dear-imgui-generator
-import DearImGui.Generator.Tokeniser
-  ( Tok(..) )
-import DearImGui.Generator.Types
-  ( Comment(..), Enumeration(..), Headers(..) )
+import DearImGui.Generator.Tokeniser (
+  Tok (..),
+ )
+import DearImGui.Generator.Types (
+  Comment (..),
+  Enumeration (..),
+  Headers (..),
+ )
 
 import qualified Text.Show as Text
 
@@ -88,100 +140,116 @@ import qualified Text.Show as Text
 
 data CustomParseError
   = Couldn'tLookupEnumValues
-    { enumName :: !Text
-    , problems :: ![Text]
-    }
+      { enumName :: !Text
+      , problems :: ![Text]
+      }
   | MissingForwardDeclaration
-    { enumName :: !Text
-    , library :: HashMap Text ( TH.Name, Comment )
-    }
+      { enumName :: !Text
+      , library :: HashMap Text (TH.Name, Comment)
+      }
   | UnexpectedSection
-    { sectionName :: !Text
-    , problem     :: ![Text]
-    }
-  deriving stock ( Show, Eq, Ord )
+      { sectionName :: !Text
+      , problem :: ![Text]
+      }
+  deriving stock (Show, Eq, Ord)
 
 instance ShowErrorComponent CustomParseError where
-  showErrorComponent ( Couldn'tLookupEnumValues { enumName, problems } ) = Text.unpack $
-    "Couldn't lookup the following values in enum " <> enumName <> ":\n"
-    <> Text.unlines ( map ( " - "  <> ) problems )
-  showErrorComponent ( MissingForwardDeclaration { enumName, library } ) = Text.unpack $
-    "Missing forward declaration for enum named " <> enumName <> "\n"
-    <> "In Library: " <> Text.pack ( Text.show library)
-  showErrorComponent ( UnexpectedSection { sectionName, problem } ) = Text.unpack $
-    "Unexpected section name.\n\
-    \Expected: " <> sectionName <> "\n\
-    \  Actual: " <> Text.unlines ( map ( " "  <> ) problem )
+  showErrorComponent (Couldn'tLookupEnumValues{enumName, problems}) =
+    Text.unpack $
+      "Couldn't lookup the following values in enum "
+        <> enumName
+        <> ":\n"
+        <> Text.unlines (map (" - " <>) problems)
+  showErrorComponent (MissingForwardDeclaration{enumName, library}) =
+    Text.unpack $
+      "Missing forward declaration for enum named "
+        <> enumName
+        <> "\n"
+        <> "In Library: "
+        <> Text.pack (Text.show library)
+  showErrorComponent (UnexpectedSection{sectionName, problem}) =
+    Text.unpack $
+      "Unexpected section name.\n\
+      \Expected: "
+        <> sectionName
+        <> "\n\
+           \  Actual: "
+        <> Text.unlines (map (" " <>) problem)
 
 --------------------------------------------------------------------------------
 -- Parsing headers.
 
-headers :: MonadParsec CustomParseError [Tok] m => m ( Headers () )
+headers :: (MonadParsec CustomParseError [Tok] m) => m (Headers ())
 headers = do
-  _ <- skipManyTill anySingle ( namedSection "Header mess" )
+  _ <- skipManyTill anySingle (namedSection "Header mess")
 
-  _ <- skipManyTill anySingle ( namedSection "Forward declarations and basic types" )
-  ( _structNames, enumNamesAndTypes ) <- forwardDeclarations
+  _ <- skipManyTill anySingle (namedSection "Forward declarations and basic types")
+  (_structNames, enumNamesAndTypes) <- forwardDeclarations
 
-  _ <- skipManyTill anySingle ( namedSection "Texture identifier (ImTextureID)" )
+  _ <- skipManyTill anySingle (namedSection "Texture identifiers (ImTextureID, ImTextureRef)")
 
-  _ <- skipManyTill anySingle ( namedSection "Dear ImGui end-user API functions" )
+  _ <- skipManyTill anySingle (namedSection "Dear ImGui end-user API functions")
 
-  _ <- skipManyTill anySingle ( namedSection "Flags & Enumerations" )
+  _ <- skipManyTill anySingle (namedSection "Flags & Enumerations")
 
-  basicEnums <- rights <$>
-    manyTill
-      (   ( Left  <$> try ignoreDefine )
-      <|> ( Left  <$> try cppConditional )
-      <|> ( Right <$> enumeration enumNamesAndTypes )
-      )
-      ( namedSection "Tables API flags and structures (ImGuiTableFlags, ImGuiTableColumnFlags, ImGuiTableRowFlags, ImGuiTableBgTarget, ImGuiTableSortSpecs, ImGuiTableColumnSortSpecs)" )
+  basicEnums <-
+    rights
+      <$> manyTill
+        ( (Left <$> try ignoreDefine)
+            <|> (Left <$> try cppConditional)
+            <|> (Right <$> enumeration enumNamesAndTypes)
+        )
+        (namedSection "Tables API flags and structures (ImGuiTableFlags, ImGuiTableColumnFlags, ImGuiTableRowFlags, ImGuiTableBgTarget, ImGuiTableSortSpecs, ImGuiTableColumnSortSpecs)")
 
-  tableEnums <- rights <$>
-    manyTill
-      (   ( Left  <$> try ignoreDefine )
-      <|> ( Left  <$> try cppConditional )
-      <|> ( Right <$> enumeration enumNamesAndTypes )
-      )
-      ( try $ many comment >> keyword "struct" >> identifier)
+  tableEnums <-
+    rights
+      <$> manyTill
+        ( (Left <$> try ignoreDefine)
+            <|> (Left <$> try cppConditional)
+            <|> (Right <$> enumeration enumNamesAndTypes)
+        )
+        (try $ many comment >> keyword "struct" >> identifier)
 
-  _ <- skipManyTill anySingle ( namedSection "Helpers: Debug log, memory allocations macros, ImVector<>" )
+  _ <- skipManyTill anySingle (namedSection "Helpers: Debug log, memory allocations macros, ImVector<>")
 
-  _ <- skipManyTill anySingle ( namedSection "ImGuiStyle" )
+  _ <- skipManyTill anySingle (namedSection "ImGuiStyle")
 
-  _ <- skipManyTill anySingle ( namedSection "ImGuiIO" )
+  _ <- skipManyTill anySingle (namedSection "ImGuiIO")
 
-  _ <- skipManyTill anySingle ( namedSection "Misc data structures" )
+  _ <- skipManyTill anySingle (namedSection "Misc data structures")
 
-  _ <- skipManyTill anySingle ( namedSection "Helpers (ImGuiOnceUponAFrame, ImGuiTextFilter, ImGuiTextBuffer, ImGuiStorage, ImGuiListClipper, Math Operators, ImColor)" )
+  _ <- skipManyTill anySingle (namedSection "Helpers (ImGuiOnceUponAFrame, ImGuiTextFilter, ImGuiTextBuffer, ImGuiStorage, ImGuiListClipper, Math Operators, ImColor)")
 
-  _ <- skipManyTill anySingle ( namedSection "Multi-Select API flags and structures (ImGuiMultiSelectFlags, ImGuiSelectionRequestType, ImGuiSelectionRequest, ImGuiMultiSelectIO, ImGuiSelectionBasicStorage)" )
+  _ <- skipManyTill anySingle (namedSection "Multi-Select API flags and structures (ImGuiMultiSelectFlags, ImGuiSelectionRequestType, ImGuiSelectionRequest, ImGuiMultiSelectIO, ImGuiSelectionBasicStorage)")
 
-  _ <- skipManyTill anySingle ( namedSection "Drawing API (ImDrawCmd, ImDrawIdx, ImDrawVert, ImDrawChannel, ImDrawListSplitter, ImDrawListFlags, ImDrawList, ImDrawData)" )
-  skipManyTill anySingle ( try . lookAhead $ many comment *> keyword "enum" )
-  drawingEnums <- many ( enumeration enumNamesAndTypes )
+  _ <- skipManyTill anySingle (namedSection "Drawing API (ImDrawCmd, ImDrawIdx, ImDrawVert, ImDrawChannel, ImDrawListSplitter, ImDrawListFlags, ImDrawList, ImDrawData)")
+  skipManyTill anySingle (try . lookAhead $ many comment *> keyword "enum")
+  drawingEnums <- many (enumeration enumNamesAndTypes)
 
-  _ <- skipManyTill anySingle ( namedSection "Font API (ImFontConfig, ImFontGlyph, ImFontAtlasFlags, ImFontAtlas, ImFontGlyphRangesBuilder, ImFont)" )
-  skipManyTill anySingle ( try . lookAhead $ many comment *> keyword "enum" )
-  fontEnums <- many ( enumeration enumNamesAndTypes )
+  _ <- skipManyTill anySingle (namedSection "Texture API (ImTextureFormat, ImTextureStatus, ImTextureRect, ImTextureData)")
 
-  _ <- skipManyTill anySingle ( namedSection "Viewports" )
+  _ <- skipManyTill anySingle (namedSection "Font API (ImFontConfig, ImFontGlyph, ImFontAtlasFlags, ImFontAtlas, ImFontGlyphRangesBuilder, ImFont)")
+  skipManyTill anySingle (try . lookAhead $ many comment *> keyword "enum")
+  fontEnums <- many (enumeration enumNamesAndTypes)
 
-  _ <- skipManyTill anySingle ( namedSection "Platform Dependent Interfaces" ) -- XXX: since 1.87
+  _ <- skipManyTill anySingle (namedSection "Viewports")
+  skipManyTill anySingle (try . lookAhead $ many comment *> keyword "enum")
+  viewportEnums <- many (enumeration enumNamesAndTypes)
 
-  _ <- skipManyTill anySingle ( namedSection "Obsolete functions and types" )
+  _ <- skipManyTill anySingle (namedSection "ImGuiPlatformIO + other Platform Dependent Interfaces") -- XXX: since 1.87
+  _ <- skipManyTill anySingle (namedSection "Obsolete functions and types")
 
   let
-    enums :: [ Enumeration () ]
-    enums = basicEnums <> tableEnums <> drawingEnums <> fontEnums
-  pure ( Headers { enums } )
+    enums :: [Enumeration ()]
+    enums = basicEnums <> tableEnums <> drawingEnums <> fontEnums <> viewportEnums
+  pure (Headers{enums})
 
 --------------------------------------------------------------------------------
 -- Parsing forward declarations.
 
-forwardDeclarations
-  :: MonadParsec CustomParseError [Tok] m
-  => m ( HashMap Text Comment, HashMap Text ( TH.Name, Comment ) )
+forwardDeclarations ::
+  (MonadParsec CustomParseError [Tok] m) =>
+  m (HashMap Text Comment, HashMap Text (TH.Name, Comment))
 forwardDeclarations = do
   _ <- many comment
   _scalars <- many do
@@ -199,7 +267,7 @@ forwardDeclarations = do
     structName <- identifier
     reservedSymbol ';'
     doc <- comment
-    pure ( structName, doc )
+    pure (structName, doc)
   _ <- many comment
   structs2 <- many do
     -- // Forward declarations: ImGui layer
@@ -207,7 +275,7 @@ forwardDeclarations = do
     structName <- identifier
     reservedSymbol ';'
     doc <- comment
-    pure ( structName, doc )
+    pure (structName, doc)
   _ <- many comment
   enums <- many do
     _ <- try do
@@ -219,7 +287,7 @@ forwardDeclarations = do
     ty <- cTypeName
     reservedSymbol ';'
     doc <- commentText <$> comment
-    pure ( enumName, ( ty, CommentText <$> Text.drop 2 . snd $ Text.breakOn "//" doc ) )
+    pure (enumName, (ty, CommentText <$> Text.drop 2 . snd $ Text.breakOn "//" doc))
   _ <- many comment
   typedefs <- many do
     keyword "typedef"
@@ -228,11 +296,11 @@ forwardDeclarations = do
     reservedSymbol ';'
     doc <- commentText <$> comment
     _ <- many comment
-    pure ( enumName, ( ty, CommentText <$> Text.drop 2 . snd $ Text.breakOn "//" doc ) )
+    pure (enumName, (ty, CommentText <$> Text.drop 2 . snd $ Text.breakOn "//" doc))
   -- Stopping after simple structs and enums for now.
-  pure ( HashMap.fromList (structs1 <> structs2), HashMap.fromList (enums <> typedefs) )
+  pure (HashMap.fromList (structs1 <> structs2), HashMap.fromList (enums <> typedefs))
 
-cTypeName :: MonadParsec e [Tok] m => m TH.Name
+cTypeName :: (MonadParsec e [Tok] m) => m TH.Name
 cTypeName =
   choice
     [ try $ (keyword "char") $> ''CChar
@@ -251,19 +319,19 @@ cTypeName =
     , try $ (identifier' "ImTextureID") $> ''CULLong
     , keyword "int" $> ''CInt
     ]
-  <?> "cTypeName"
+    <?> "cTypeName"
 
 --------------------------------------------------------------------------------
 -- Parsing enumerations.
 
 data EnumState = EnumState
-  { enumValues       :: HashMap Text Integer
-  , currEnumTag      :: Integer
-  , enumSize         :: Integer
+  { enumValues :: HashMap Text Integer
+  , currEnumTag :: Integer
+  , enumSize :: Integer
   , hasExplicitCount :: Bool
   }
 
-enumeration :: MonadParsec CustomParseError [Tok] m => HashMap Text ( TH.Name, Comment ) -> m ( Enumeration () )
+enumeration :: (MonadParsec CustomParseError [Tok] m) => HashMap Text (TH.Name, Comment) -> m (Enumeration ())
 enumeration enumNamesAndTypes = do
   void $ many (try $ comment >> cppConditional)
   inlineDocs <- try do
@@ -274,131 +342,136 @@ enumeration enumNamesAndTypes = do
   _ <- try $ (symbol ":" >> cTypeName >> pure ()) <|> pure ()
   let
     enumName :: Text
-    enumName = Text.dropWhileEnd ( == '_' ) fullEnumName
+    enumName = Text.dropWhileEnd (== '_') fullEnumName
     enumTypeName :: ()
     enumTypeName = ()
-  ( underlyingType, forwardDoc ) <- case HashMap.lookup enumName enumNamesAndTypes of
+  (underlyingType, forwardDoc) <- case HashMap.lookup enumName enumNamesAndTypes of
     Just res -> pure res
-    Nothing  -> customFailure ( MissingForwardDeclaration { enumName, library=enumNamesAndTypes } )
+    Nothing -> customFailure (MissingForwardDeclaration{enumName, library = enumNamesAndTypes})
   let
     docs :: [Comment]
     docs = forwardDoc : CommentText "" : inlineDocs
   reservedSymbol '{'
-  ( patterns, EnumState { enumSize, hasExplicitCount } ) <-
-    ( `runStateT` EnumState { enumValues = mempty, currEnumTag = 0, enumSize = 0, hasExplicitCount = False } ) $
+  (patterns, EnumState{enumSize, hasExplicitCount}) <-
+    (`runStateT` EnumState{enumValues = mempty, currEnumTag = 0, enumSize = 0, hasExplicitCount = False}) $
       catMaybes
-          <$> many
-               (   some ignoredPatternContent $> Nothing
-               <|> enumerationPattern fullEnumName
-               )
+        <$> many
+          ( some ignoredPatternContent $> Nothing
+              <|> enumerationPattern fullEnumName
+          )
   reservedSymbol '}'
-  reservedSymbol  ';'
-  pure ( Enumeration { .. } )
+  reservedSymbol ';'
+  pure (Enumeration{..})
 
-ignoredPatternContent :: MonadParsec e [Tok] m => m ()
-ignoredPatternContent = void ( try comment ) <|> cppConditional
+ignoredPatternContent :: (MonadParsec e [Tok] m) => m ()
+ignoredPatternContent = void (try comment) <|> cppConditional
 
-enumerationPattern
-  :: MonadParsec CustomParseError [ Tok ] m
-  => Text
-  -> StateT EnumState m ( Maybe ( Text, Integer, Comment ) )
+enumerationPattern ::
+  (MonadParsec CustomParseError [Tok] m) =>
+  Text ->
+  StateT EnumState m (Maybe (Text, Integer, Comment))
 enumerationPattern enumName = do
   mbPatNameVal <- patternNameAndValue enumName
   _ <- optional $ reservedSymbol ','
-  comm <- fromMaybe ( CommentText "" ) <$> optional comment
+  comm <- fromMaybe (CommentText "") <$> optional comment
   pure $
     case mbPatNameVal of
-      Nothing                    -> Nothing
-      Just ( patName, patValue ) -> Just ( patName, patValue, comm )
+      Nothing -> Nothing
+      Just (patName, patValue) -> Just (patName, patValue, comm)
 
-patternNameAndValue
-  :: forall m
-  .  MonadParsec CustomParseError [ Tok ] m
-  => Text
-  -> StateT EnumState m ( Maybe ( Text, Integer ) )
+patternNameAndValue ::
+  forall m.
+  (MonadParsec CustomParseError [Tok] m) =>
+  Text ->
+  StateT EnumState m (Maybe (Text, Integer))
 patternNameAndValue enumName =
   try do
-      sz <- count
-      modify' ( \ ( EnumState {..} ) -> EnumState { enumSize = sz, hasExplicitCount = True, .. } )
-      pure Nothing
-  <|> do
-        pat@( _, val ) <- value
-        modify' ( \ ( EnumState {..} ) -> EnumState { enumSize = enumSize + 1, currEnumTag = val + 1, .. } )
-        pure ( Just pat )
-  where
-    count :: StateT EnumState m Integer
-    count = do
-      let idName = enumName <> "COUNT"
-      _ <- single ( Identifier idName )
+    sz <- count
+    modify' (\(EnumState{..}) -> EnumState{enumSize = sz, hasExplicitCount = True, ..})
+    pure Nothing
+    <|> do
+      pat@(_, val) <- value
+      modify' (\(EnumState{..}) -> EnumState{enumSize = enumSize + 1, currEnumTag = val + 1, ..})
+      pure (Just pat)
+ where
+  count :: StateT EnumState m Integer
+  count = do
+    let idName = enumName <> "COUNT"
+    _ <- single (Identifier idName)
 
-      mbVal <- optional do
-        _ <- reservedSymbol '='
-        EnumState{enumValues} <- get
-        integerExpression enumValues
+    mbVal <- optional do
+      _ <- reservedSymbol '='
+      EnumState{enumValues} <- get
+      integerExpression enumValues
 
-      countVal <- case mbVal of
-        Nothing -> currEnumTag <$> get
-        Just ct -> pure ct
+    countVal <- case mbVal of
+      Nothing -> currEnumTag <$> get
+      Just ct -> pure ct
 
-      modify' ( \ st -> st { enumValues = HashMap.insert idName countVal ( enumValues st ) } )
-      pure countVal
+    modify' (\st -> st{enumValues = HashMap.insert idName countVal (enumValues st)})
+    pure countVal
 
-    value :: StateT EnumState m ( Text, Integer )
-    value = do
-      name <- identifier
-      val <- patternRHS
-      modify' ( \ st -> st { enumValues = HashMap.insert name val ( enumValues st ) } )
-      pure ( name, val )
-    patternRHS :: StateT EnumState m Integer
-    patternRHS =
-      ( do
+  value :: StateT EnumState m (Text, Integer)
+  value = do
+    name <- identifier
+    val <- patternRHS
+    modify' (\st -> st{enumValues = HashMap.insert name val (enumValues st)})
+    pure (name, val)
+  patternRHS :: StateT EnumState m Integer
+  patternRHS =
+    ( do
         reservedSymbol '='
         EnumState{enumValues} <- get
         try disjunction <|> try (integerExpression enumValues)
-      )
-      <|> ( currEnumTag <$> get )
+    )
+      <|> (currEnumTag <$> get)
 
-    disjunction :: StateT EnumState m Integer
-    disjunction = do
-      initial <- identifier <* symbol "|"
-      ( rest :: [Text] ) <- identifier `sepBy1` symbol "|"
-      let summands = initial : rest
-      valsMap <- enumValues <$> get
-      let
-        res :: Either [ Text ] Integer
-        res = foldr
-          ( \ summand errsOrVal -> case HashMap.lookup summand valsMap of
-            Nothing -> case errsOrVal of { Right _  -> Left [ summand ]; Left errs -> Left ( summand : errs ) }
-            Just v  -> case errsOrVal of { Right v' -> Right ( v + v' ); Left errs -> Left errs }
+  disjunction :: StateT EnumState m Integer
+  disjunction = do
+    initial <- identifier <* symbol "|"
+    (rest :: [Text]) <- identifier `sepBy1` symbol "|"
+    let summands = initial : rest
+    valsMap <- enumValues <$> get
+    let
+      res :: Either [Text] Integer
+      res =
+        foldr
+          ( \summand errsOrVal -> case HashMap.lookup summand valsMap of
+              Nothing -> case errsOrVal of Right _ -> Left [summand]; Left errs -> Left (summand : errs)
+              Just v -> case errsOrVal of Right v' -> Right (v + v'); Left errs -> Left errs
           )
-          ( Right 0 )
+          (Right 0)
           summands
-      case res of
-        Left problems -> customFailure ( Couldn'tLookupEnumValues { enumName, problems } )
-        Right v -> pure v
+    case res of
+      Left problems -> customFailure (Couldn'tLookupEnumValues{enumName, problems})
+      Right v -> pure v
 
 --------------------------------------------------------------------------------
 -- Simple token parsers.
 
-comment :: MonadParsec e [ Tok ] m => m Comment
-comment = CommentText <$>
-  token ( \ case { Comment comm -> Just comm; _ -> Nothing } ) mempty
+comment :: (MonadParsec e [Tok] m) => m Comment
+comment =
+  CommentText
+    <$> token (\case Comment comm -> Just comm; _ -> Nothing) mempty
     <?> "comment"
 
-keyword :: MonadParsec e [ Tok ] m => Text -> m ()
+keyword :: (MonadParsec e [Tok] m) => Text -> m ()
 keyword = void . keyword'
 
-keyword' :: MonadParsec e [ Tok ] m => Text -> m Text
-keyword' kw = token ( \ case { Keyword kw' | kw == kw' -> Just kw; _ -> Nothing } ) mempty
-  <?> ( Text.unpack kw <> " (keyword)" )
+keyword' :: (MonadParsec e [Tok] m) => Text -> m Text
+keyword' kw =
+  token (\case Keyword kw' | kw == kw' -> Just kw; _ -> Nothing) mempty
+    <?> (Text.unpack kw <> " (keyword)")
 
-identifier :: MonadParsec e [ Tok ] m => m Text
-identifier = token ( \ case { Identifier i -> Just i; _ -> Nothing } ) mempty
-  <?> "identifier"
+identifier :: (MonadParsec e [Tok] m) => m Text
+identifier =
+  token (\case Identifier i -> Just i; _ -> Nothing) mempty
+    <?> "identifier"
 
-identifier' :: MonadParsec e [ Tok ] m => Text -> m Text
-identifier' ident = token ( \ case { Identifier i | i == ident -> Just ident; _ -> Nothing } ) mempty
-  <?> ( Text.unpack ident <> " (identifier)" )
+identifier' :: (MonadParsec e [Tok] m) => Text -> m Text
+identifier' ident =
+  token (\case Identifier i | i == ident -> Just ident; _ -> Nothing) mempty
+    <?> (Text.unpack ident <> " (identifier)")
 
 {-
 prefixedIdentifier :: MonadParsec e [ Tok ] m => Text -> m Text
@@ -411,116 +484,118 @@ prefixedIdentifier prefix =
     ) mempty
 -}
 
-reservedSymbol :: MonadParsec e [ Tok ] m => Char -> m ()
-reservedSymbol s = token ( \ case { ReservedSymbol s' | s == s' -> Just (); _ -> Nothing } ) mempty
-  <?> ( [s] <> " (reserved symbol)" )
+reservedSymbol :: (MonadParsec e [Tok] m) => Char -> m ()
+reservedSymbol s =
+  token (\case ReservedSymbol s' | s == s' -> Just (); _ -> Nothing) mempty
+    <?> ([s] <> " (reserved symbol)")
 
-symbol :: MonadParsec e [ Tok ] m => Text -> m ()
-symbol s = token ( \ case { Symbolic s' | s == s' -> Just (); _ -> Nothing } ) mempty
-  <?> ( Text.unpack s <> " (symbol)" )
+symbol :: (MonadParsec e [Tok] m) => Text -> m ()
+symbol s =
+  token (\case Symbolic s' | s == s' -> Just (); _ -> Nothing) mempty
+    <?> (Text.unpack s <> " (symbol)")
 
-integerExpression :: MonadParsec e [ Tok ] m => HashMap Text Integer -> m Integer
+integerExpression :: (MonadParsec e [Tok] m) => HashMap Text Integer -> m Integer
 integerExpression enums = try integerPower <|> try integerAdd <|> try integerSub <|> integer
-  where
-    integerPower :: MonadParsec e [ Tok ] m => m Integer
-    integerPower = do
-      a <- integer
-      _ <- symbol "<<"
-      i <- integer
-      pure ( a `shiftL` fromIntegral i )
+ where
+  integerPower :: (MonadParsec e [Tok] m) => m Integer
+  integerPower = do
+    a <- integer
+    _ <- symbol "<<"
+    i <- integer
+    pure (a `shiftL` fromIntegral i)
 
-    integerAdd :: MonadParsec e [ Tok ] m => m Integer
-    integerAdd = do
-      a <- integer
-      _ <- symbol "+"
-      i <- integer
-      pure ( a + i )
+  integerAdd :: (MonadParsec e [Tok] m) => m Integer
+  integerAdd = do
+    a <- integer
+    _ <- symbol "+"
+    i <- integer
+    pure (a + i)
 
-    integerSub :: MonadParsec e [ Tok ] m => m Integer
-    integerSub = do
-      a <- integer
-      _ <- symbol "-"
-      i <- integer
-      pure ( a - i )
+  integerSub :: (MonadParsec e [Tok] m) => m Integer
+  integerSub = do
+    a <- integer
+    _ <- symbol "-"
+    i <- integer
+    pure (a - i)
 
-    integer :: forall e m. MonadParsec e [ Tok ] m => m Integer
-    integer =
-      option id mkSign <*>
-        token
-          ( \case
-              Number i suff
-                | Just  _  <- toBoundedInteger @Int64 i
-                , Right i' <- floatingOrInteger @Float @Integer i
-                , not ( Text.any ( (== 'f' ) . toLower ) suff )
-                ->
-                Just i'
+  integer :: forall e m. (MonadParsec e [Tok] m) => m Integer
+  integer =
+    option id mkSign
+      <*> token
+        ( \case
+            Number i suff
+              | Just _ <- toBoundedInteger @Int64 i
+              , Right i' <- floatingOrInteger @Float @Integer i
+              , not (Text.any ((== 'f') . toLower) suff) ->
+                  Just i'
+            Identifier name ->
+              HashMap.lookup name enums
+            _ ->
+              Nothing
+        )
+        mempty
+      <?> "integer"
+   where
+    mkSign :: m (Integer -> Integer)
+    mkSign = (symbol "+" $> id) <|> (symbol "-" $> negate)
 
-              Identifier name ->
-                HashMap.lookup name enums
-
-              _ ->
-                Nothing
-          )
-          mempty
-        <?> "integer"
-      where
-        mkSign :: m ( Integer -> Integer )
-        mkSign = ( symbol "+" $> id ) <|> ( symbol "-" $> negate )
-
-section :: MonadParsec e [ Tok ] m => m [Text]
+section :: (MonadParsec e [Tok] m) => m [Text]
 section =
   do
     sectionText <- try do
       separator
       token
-        ( \ case
-          { Comment txt -> fmap ( Text.dropWhile isSpace )
-                         . Text.stripPrefix "[SECTION]"
-                         . Text.dropWhile isSpace
-                         $ txt
-          ; _ -> Nothing
-          }
-        ) mempty
+        ( \case
+            Comment txt ->
+              fmap (Text.dropWhile isSpace)
+                . Text.stripPrefix "[SECTION]"
+                . Text.dropWhile isSpace
+                $ txt
+            _ -> Nothing
+        )
+        mempty
     rest <- endOfSectionHeader
-    pure ( sectionText : filter ( not . Text.all ( \ c -> c == '-' || isSpace c ) ) rest )
-  <?> "section"
+    pure (sectionText : filter (not . Text.all (\c -> c == '-' || isSpace c)) rest)
+    <?> "section"
 
-separator :: MonadParsec e [ Tok ] m => m ()
-separator = token
-  ( \ case
-    { Comment hyphens | Text.length hyphens > 10 && Text.all ( == '-') hyphens -> Just ()
-    ; _ -> Nothing
-    }
-  ) mempty
-  <?> "separator"
+separator :: (MonadParsec e [Tok] m) => m ()
+separator =
+  token
+    ( \case
+        Comment hyphens | Text.length hyphens > 10 && Text.all (== '-') hyphens -> Just ()
+        _ -> Nothing
+    )
+    mempty
+    <?> "separator"
 
-endOfSectionHeader :: MonadParsec e [ Tok ] m => m [Text]
-endOfSectionHeader =  try ( (:) <$> ( commentText <$> comment ) <*> endOfSectionHeader )
-                  <|> ( separator $> [] )
+endOfSectionHeader :: (MonadParsec e [Tok] m) => m [Text]
+endOfSectionHeader =
+  try ((:) <$> (commentText <$> comment) <*> endOfSectionHeader)
+    <|> (separator $> [])
 
-namedSection :: MonadParsec CustomParseError [ Tok ] m => Text -> m ()
+namedSection :: (MonadParsec CustomParseError [Tok] m) => Text -> m ()
 namedSection sectionName =
   do
     sectionTexts <- section
     case sectionTexts of
       sectionText : _
-        | Just _ <- Text.stripPrefix sectionName sectionText
-        -> pure ()
-      _ -> customFailure ( UnexpectedSection { sectionName, problem = sectionTexts } )
-  <?> ( "section named " <> Text.unpack sectionName )
+        | Just _ <- Text.stripPrefix sectionName sectionText ->
+            pure ()
+      _ -> customFailure (UnexpectedSection{sectionName, problem = sectionTexts})
+    <?> ("section named " <> Text.unpack sectionName)
 
-cppDirective :: MonadParsec e [Tok] m => ( Text -> Maybe a ) -> m a
-cppDirective f = token ( \case { BeginCPP a -> f a; _ -> Nothing } ) mempty
+cppDirective :: (MonadParsec e [Tok] m) => (Text -> Maybe a) -> m a
+cppDirective f = token (\case BeginCPP a -> f a; _ -> Nothing) mempty
 
-cppConditional :: MonadParsec e [Tok] m => m ()
+cppConditional :: (MonadParsec e [Tok] m) => m ()
 cppConditional = do
-  void $ cppDirective ( \case { "if" -> Just True; "ifdef" -> Just True; "ifndef" -> Just False; _ -> Nothing } )
+  void $ cppDirective (\case "if" -> Just True; "ifdef" -> Just True; "ifndef" -> Just False; _ -> Nothing)
   -- assumes no nesting
-  void $ skipManyTill anySingle ( cppDirective ( \case { "endif" -> Just (); _ -> Nothing } ) )
-  void $ skipManyTill anySingle ( single EndCPPLine )
+  void $ skipManyTill anySingle (cppDirective (\case "endif" -> Just (); _ -> Nothing))
+  void $ skipManyTill anySingle (single EndCPPLine)
 
-ignoreDefine :: MonadParsec e [Tok] m => m ()
+ignoreDefine :: (MonadParsec e [Tok] m) => m ()
 ignoreDefine = do
   void $ many comment
-  void $ cppDirective ( \case { "define" -> Just (); _ -> Nothing } )
-  void $ skipManyTill anySingle ( single EndCPPLine )
+  void $ cppDirective (\case "define" -> Just (); _ -> Nothing)
+  void $ skipManyTill anySingle (single EndCPPLine)

@@ -159,9 +159,12 @@ library
     src
   exposed-modules:
     DearImGui
+    DearImGui.Docking
     DearImGui.FontAtlas
     DearImGui.Internal.Text
     DearImGui.Raw
+    DearImGui.Raw.DockBuilder
+    DearImGui.Raw.Docking
     DearImGui.Raw.DragDrop
     DearImGui.Raw.DrawList
     DearImGui.Raw.Font
@@ -170,6 +173,8 @@ library
     DearImGui.Raw.IO
     DearImGui.Raw.ListClipper
     DearImGui.Raw.Context
+    DearImGui.Raw.Viewport
+    DearImGui.Raw.WindowClass
   other-modules:
     DearImGui.Enums
     DearImGui.Structs
