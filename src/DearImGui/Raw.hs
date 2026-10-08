@@ -103,6 +103,7 @@ module DearImGui.Raw
   , pushStyleColor
   , popStyleColor
   , pushStyleVar
+  , pushStyleVarFloat
   , popStyleVar
   , pushTabStop
   , popTabStop
@@ -2319,6 +2320,13 @@ popStyleColor n = liftIO do
 pushStyleVar :: (MonadIO m) => ImGuiStyleVar -> Ptr ImVec2 -> m ()
 pushStyleVar style valPtr = liftIO do
   [C.exp| void { PushStyleVar($(ImGuiStyleVar style), *$(ImVec2* valPtr)) } |]
+
+-- | 'pushStyleVar' for the float vars (rounding, border sizes, alpha, ...).
+--
+-- Wraps @ImGui::PushStyleVar()@
+pushStyleVarFloat :: (MonadIO m) => ImGuiStyleVar -> CFloat -> m ()
+pushStyleVarFloat style val = liftIO do
+  [C.exp| void { PushStyleVar($(ImGuiStyleVar style), $(float val)) } |]
 
 
 -- | Remove style variable modifications from the shared stack

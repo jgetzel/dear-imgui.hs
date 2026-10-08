@@ -105,6 +105,8 @@ module DearImGui
 
   , withStyleVar
   , pushStyleVar
+  , withStyleVarFloat
+  , pushStyleVarFloat
   , popStyleVar
   , withTabStop
   , pushTabStop
@@ -2645,6 +2647,17 @@ pushStyleVar style valRef = liftIO do
   val <- get valRef
   with val \valPtr ->
     Raw.pushStyleVar style valPtr
+
+withStyleVarFloat :: (MonadUnliftIO m) => ImGuiStyleVar -> Float -> m a -> m a
+withStyleVarFloat style val =
+  bracket_ (pushStyleVarFloat style val) (Raw.popStyleVar 1)
+
+-- | Modify a float style variable (rounding, border sizes, alpha, ...) by pushing to the shared stack.
+--
+-- Wraps @ImGui::PushStyleVar()@
+pushStyleVarFloat :: (MonadIO m) => ImGuiStyleVar -> Float -> m ()
+pushStyleVarFloat style val =
+  Raw.pushStyleVarFloat style (CFloat val)
 
 -- | Remove style variable modifications from the shared stack
 --
