@@ -25,6 +25,8 @@ module DearImGui.Raw.IO
   , setKeyRepeatRate
 
   , setUserData
+
+  , setDisplaySize
   ) where
 
 -- TODO: add exports
@@ -42,7 +44,7 @@ import Foreign.C
 import DearImGui.Raw.Context
   ( imguiContext )
 -- import DearImGui.Enums
--- import DearImGui.Structs
+import DearImGui.Structs
 
 -- inline-c
 import qualified Language.C.Inline as C
@@ -132,3 +134,12 @@ int    MetricsActiveWindows;     // Number of active windows
 int    MetricsActiveAllocations; // Number of active allocations, updated by MemAlloc/MemFree based on current context. May be off if you have multiple imgui contexts.
 ImVec2 MouseDelta;
 -}
+
+-- | Set the display size by hand, for a context with no platform backend to do it.
+setDisplaySize :: MonadIO m => Ptr ImVec2 -> m ()
+setDisplaySize sizePtr = liftIO do
+  [C.block|
+    void {
+      GetIO().DisplaySize = *$(ImVec2 * sizePtr);
+    }
+  |]

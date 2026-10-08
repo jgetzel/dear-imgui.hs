@@ -164,6 +164,7 @@ library
     DearImGui.Internal.Text
     DearImGui.Raw
     DearImGui.Raw.DockBuilder
+    DearImGui.Raw.Style
     DearImGui.Raw.Docking
     DearImGui.Raw.DragDrop
     DearImGui.Raw.DrawList
