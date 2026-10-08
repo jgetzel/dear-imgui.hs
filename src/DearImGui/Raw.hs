@@ -1898,7 +1898,7 @@ getItemRectMax = liftIO do
   C.withPtr_ \ptr ->
     [C.block|
       void {
-        *$(ImVec2 * ptr) = GetItemRectMin();
+        *$(ImVec2 * ptr) = GetItemRectMax();
       }
     |]
 
