@@ -2633,9 +2633,10 @@ pushStyleColor col colorRef = liftIO do
   with color \colorPtr ->
     Raw.pushStyleColor col colorPtr
 
+-- | Run the block with a style var pushed. A float var is not pushed, and the block runs unchanged.
 withStyleVar :: (MonadUnliftIO m, HasGetter ref ImVec2) => ImGuiStyleVar -> ref -> m a -> m a
-withStyleVar style ref =
-  bracket_ (pushStyleVar style ref) (Raw.popStyleVar 1)
+withStyleVar style ref act =
+  bracket (pushStyleVar style ref) (\ok -> when ok (Raw.popStyleVar 1)) (const act)
 
 -- | Allow/disable focusing using TAB/Shift-TAB, enabled by default but you can disable it for certain widgets.
 withTabStop :: MonadUnliftIO m => Bool -> m a -> m a
@@ -2649,24 +2650,28 @@ pushTabStop = Raw.pushTabStop . bool 0 1
 -- | Modify a style variable by pushing to the shared stack.
 --
 -- Always use this if you modify the style after `newFrame`.
+-- False, and nothing pushed, for a float var.
 --
 -- Wraps @ImGui::PushStyleVar()@
-pushStyleVar :: (MonadIO m, HasGetter ref ImVec2) => ImGuiStyleVar -> ref -> m ()
+pushStyleVar :: (MonadIO m, HasGetter ref ImVec2) => ImGuiStyleVar -> ref -> m Bool
 pushStyleVar style valRef = liftIO do
   val <- get valRef
   with val \valPtr ->
-    Raw.pushStyleVar style valPtr
+    (/= 0) <$> Raw.pushStyleVar style valPtr
 
+-- | Run the block with a float style var pushed. An 'ImVec2' var is not pushed, and the block runs unchanged.
 withStyleVarFloat :: (MonadUnliftIO m) => ImGuiStyleVar -> Float -> m a -> m a
-withStyleVarFloat style val =
-  bracket_ (pushStyleVarFloat style val) (Raw.popStyleVar 1)
+withStyleVarFloat style val act =
+  bracket (pushStyleVarFloat style val) (\ok -> when ok (Raw.popStyleVar 1)) (const act)
 
 -- | Modify a float style variable (rounding, border sizes, alpha, ...) by pushing to the shared stack.
 --
+-- False, and nothing pushed, for an 'ImVec2' var.
+--
 -- Wraps @ImGui::PushStyleVar()@
-pushStyleVarFloat :: (MonadIO m) => ImGuiStyleVar -> Float -> m ()
+pushStyleVarFloat :: (MonadIO m) => ImGuiStyleVar -> Float -> m Bool
 pushStyleVarFloat style val =
-  Raw.pushStyleVarFloat style (CFloat val)
+  (/= 0) <$> Raw.pushStyleVarFloat style (CFloat val)
 
 -- | An 'ImVec2' style var of the current style; 'Nothing' for a float var.
 getStyleVar :: (MonadIO m) => ImGuiStyleVar -> m (Maybe ImVec2)

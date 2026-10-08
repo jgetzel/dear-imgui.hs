@@ -386,6 +386,7 @@ import qualified Language.C.Inline.Cpp as Cpp
 
 C.context (Cpp.cppCtx <> C.bsCtx <> imguiContext)
 C.include "imgui.h"
+C.include "imgui_internal.h"
 Cpp.using "namespace ImGui"
 
 
@@ -2316,17 +2317,36 @@ popStyleColor n = liftIO do
 
 -- | Modify a style variable by pushing to the shared stack. always use this if you modify the style after `newFrame`
 --
+-- False, and nothing pushed, for a float var or an out-of-range index,
+-- where @PushStyleVar()@ would assert.
+--
 -- Wraps @ImGui::PushStyleVar()@
-pushStyleVar :: (MonadIO m) => ImGuiStyleVar -> Ptr ImVec2 -> m ()
+pushStyleVar :: (MonadIO m) => ImGuiStyleVar -> Ptr ImVec2 -> m CBool
 pushStyleVar style valPtr = liftIO do
-  [C.exp| void { PushStyleVar($(ImGuiStyleVar style), *$(ImVec2* valPtr)) } |]
+  [C.block| bool {
+    ImGuiStyleVar idx = $(ImGuiStyleVar style);
+    if (idx < 0 || idx >= ImGuiStyleVar_COUNT) return false;
+    const ImGuiStyleVarInfo* info = GetStyleVarInfo(idx);
+    if (info->DataType != ImGuiDataType_Float || info->Count != 2) return false;
+    PushStyleVar(idx, *$(ImVec2* valPtr));
+    return true;
+  } |]
 
 -- | 'pushStyleVar' for the float vars (rounding, border sizes, alpha, ...).
 --
+-- False, and nothing pushed, for an 'ImVec2' var or an out-of-range index.
+--
 -- Wraps @ImGui::PushStyleVar()@
-pushStyleVarFloat :: (MonadIO m) => ImGuiStyleVar -> CFloat -> m ()
+pushStyleVarFloat :: (MonadIO m) => ImGuiStyleVar -> CFloat -> m CBool
 pushStyleVarFloat style val = liftIO do
-  [C.exp| void { PushStyleVar($(ImGuiStyleVar style), $(float val)) } |]
+  [C.block| bool {
+    ImGuiStyleVar idx = $(ImGuiStyleVar style);
+    if (idx < 0 || idx >= ImGuiStyleVar_COUNT) return false;
+    const ImGuiStyleVarInfo* info = GetStyleVarInfo(idx);
+    if (info->DataType != ImGuiDataType_Float || info->Count != 1) return false;
+    PushStyleVar(idx, $(float val));
+    return true;
+  } |]
 
 
 -- | Remove style variable modifications from the shared stack
