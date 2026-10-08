@@ -112,6 +112,14 @@ module DearImGui
   , pushTabStop
   , Raw.popTabStop
 
+    -- * Style
+  , getStyleVar
+  , setStyleVar
+  , getStyleVarFloat
+  , setStyleVarFloat
+  , getStyleColor
+  , setStyleColor
+
   , withFont
   , Raw.Font.pushFont
   , Raw.Font.popFont
@@ -477,6 +485,7 @@ import qualified DearImGui.Raw as Raw
 import qualified DearImGui.Raw.DragDrop as Raw.DragDrop
 import qualified DearImGui.Raw.Font as Raw.Font
 import qualified DearImGui.Raw.ListClipper as Raw.ListClipper
+import qualified DearImGui.Raw.Style as Raw.Style
 
 -- managed
 import qualified Control.Monad.Managed as Managed
@@ -2658,6 +2667,44 @@ withStyleVarFloat style val =
 pushStyleVarFloat :: (MonadIO m) => ImGuiStyleVar -> Float -> m ()
 pushStyleVarFloat style val =
   Raw.pushStyleVarFloat style (CFloat val)
+
+-- | An 'ImVec2' style var of the current style; 'Nothing' for a float var.
+getStyleVar :: (MonadIO m) => ImGuiStyleVar -> m (Maybe ImVec2)
+getStyleVar style = liftIO do
+  alloca \ptr -> do
+    ok <- Raw.Style.getStyleVar style ptr
+    if ok /= 0 then Just <$> peek ptr else pure Nothing
+
+-- | Set an 'ImVec2' style var on the current style, outside the push/pop stack.
+-- False, and no change, for a float var.
+setStyleVar :: (MonadIO m) => ImGuiStyleVar -> ImVec2 -> m Bool
+setStyleVar style val = liftIO do
+  with val \ptr -> (/= 0) <$> Raw.Style.setStyleVar style ptr
+
+-- | A float style var of the current style; 'Nothing' for an 'ImVec2' var.
+getStyleVarFloat :: (MonadIO m) => ImGuiStyleVar -> m (Maybe Float)
+getStyleVarFloat style = liftIO do
+  alloca \ptr -> do
+    ok <- Raw.Style.getStyleVarFloat style ptr
+    if ok /= 0 then Just . realToFrac <$> peek ptr else pure Nothing
+
+-- | Set a float style var on the current style, outside the push/pop stack.
+-- False, and no change, for an 'ImVec2' var.
+setStyleVarFloat :: (MonadIO m) => ImGuiStyleVar -> Float -> m Bool
+setStyleVarFloat style val =
+  (/= 0) <$> Raw.Style.setStyleVarFloat style (CFloat val)
+
+-- | A color of the current style.
+getStyleColor :: (MonadIO m) => ImGuiCol -> m (Maybe ImVec4)
+getStyleColor col = liftIO do
+  alloca \ptr -> do
+    ok <- Raw.Style.getStyleColor col ptr
+    if ok /= 0 then Just <$> peek ptr else pure Nothing
+
+-- | Set a color of the current style, outside the push/pop stack.
+setStyleColor :: (MonadIO m) => ImGuiCol -> ImVec4 -> m Bool
+setStyleColor col val = liftIO do
+  with val \ptr -> (/= 0) <$> Raw.Style.setStyleColor col ptr
 
 -- | Remove style variable modifications from the shared stack
 --
